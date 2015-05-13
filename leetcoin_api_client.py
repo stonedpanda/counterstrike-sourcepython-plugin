@@ -216,7 +216,8 @@ class LeetCoinAPIClient:
         
         server_info = json.loads(server_info_json)
         
-        self.allow_non_authorized_players = server_info['allow_non_authorized_players']
+#        self.allow_non_authorized_players = server_info['allow_non_authorized_players']
+        self.allow_non_authorized_players = True
         
         # start up the threads.
         self.workers = []

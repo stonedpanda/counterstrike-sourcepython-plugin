@@ -340,3 +340,7 @@ def saycommand_test(playerinfo, teamonly, command):
     #SayText2(message="balance").send(index_from_playerinfo(playerinfo))
     balance = leetcoin_client.getPlayerBalance(convertSteamIDToCommunityID(playerinfo.get_networkid_string()))
     SayText2(message="" + balance + "").send(index_from_playerinfo(playerinfo))
+
+@SayCommand("bet")
+def saycommand_bet(playerinfo, teamonly, command):
+    SayText2(message="Under construction").send(index_from_playerinfo(playerinfo))
