@@ -344,3 +344,14 @@ def saycommand_test(playerinfo, teamonly, command):
 @SayCommand("bet")
 def saycommand_bet(playerinfo, teamonly, command):
     SayText2(message="Under construction").send(index_from_playerinfo(playerinfo))
+    player = PlayerEntity(index_from_playerinfo(playerinfo))
+
+    # Check if player is spectator
+    if player.team == 1:
+        team = str(command[1]).split(" ")[1]
+        if team == "ct":
+            SayText2(message="Betting on CT...").send(index_from_playerinfo(playerinfo))
+        if team == "t":
+            SayText2(message="Betting on T").send(index_from_playerinfo(playerinfo))
+    else:
+        SayText2(message="Only spectators can bet").send(index_from_playerinfo(playerinfo))
