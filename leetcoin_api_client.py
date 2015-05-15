@@ -969,7 +969,9 @@ class Worker(threading.Thread):
                     deaths = player['deaths']
                     all_kills += kills
                     all_deaths += deaths
-                if all_kills > 0 and all_deaths > 0:
+# testing
+#                if all_kills > 0 and all_deaths > 0:
+                if True:
                     uri = "/api/put_match_results"
 
                     player_json_list = json.dumps(player_dict_list)
