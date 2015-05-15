@@ -76,7 +76,8 @@ leetcoin_client = LeetCoinAPIClient(url, api_key, shared_secret)
 pending_activation_player_list = []
 
 # custom betting
-bets = [[], []]
+#bets = [[], []]
+bets = {'ct': {}, 't': {}}
 
 # Create a callback
 def my_repeat_callback():
@@ -136,8 +137,7 @@ def round_start(game_event):
 
     players = PlayerIter('human')
     for player in players:
-        SayText2(message="Type: bet <ct|t> to place a wager").send(player)
-
+        SayText2(message="Type: bet <ct|t> <amount> to place a wager").send(player)
     pass
  
 @Event
@@ -148,32 +148,47 @@ def round_end(game_event):
     winner = game_event.get_int("winner")
 
     # Check both teams have bets
-    if not bets[0] or not bets[1]:
+    if not bets['ct'] or not bets['t']:
+
+        pprint.pprint(bets)
+
         # Return bets
-        for bet in bets[0]:
-            leetcoin_client.requestAward(100, "REFUND - BET - T", bet)
-        for bet in bets[1]:
-            leetcoin_client.requestAward(100, "REFUND - BET - CT", bet)
+        for userid, amount in bets['ct'].items():
+            SayText2(message="REFUND - " + str(amount) + " SAT - NOT ENOUGH BETS").send(index_from_userid(userid))
+            leetcoin_client.requestAward(amount, "REFUND - " + str(amount) + " SAT - NOT ENOUGH BETS", userid)
+        for userid, amount in bets['t'].items():
+            SayText2(message="REFUND - " + str(amount) + " SAT - NOT ENOUGH BETS").send(index_from_userid(userid))
+            leetcoin_client.requestAward(amount, "REFUND - " + str(amount) + " SAT - NOT ENOUGH BETS", userid)
         pass
     else:
-        pool = len(bets[0]) + len(bets[1]) * 100
+#        pool = (len(bets[0]) + len(bets[1])) * 100
+        pool_ct = 0
+        pool_t = 0
+        for userid, amount in bets['ct']:
+            pool_ct += amount
+        for userid, amount in bets['t']:
+            pool_t += amount
+        pool = pool_ct + pool_t
+
         pprint.pprint(pool)
-        server_take = pool * 0.10
+        server_take = pool * 0.10 # 10%
         pprint.pprint(server_take)
-        players_cut = server_take * 0.10
+        players_cut = server_take / 5 # 2%
         pprint.pprint(players_cut)
         remaining = pool - server_take
         pprint.pprint(remaining)
 
         if winner == 2:
             print("T Wins!")
-            pprint.pprint(bets[0])
+            pprint.pprint(bets['t'])
             # Pay winners
-            for bet in bets[0]:
-                award = remaining / len(bets[0])
-                leetcoin_client.requestAward(award, "Won bet on T", bet)
+            for userid, amount in bets['t']:
+                award = remaining / (amount / pool_t)
+                leetcoin_client.requestAward(award, "Won bet on T", userid)
 
-            if len(bets[0]) > 0:
+            if not bets['t']:
+                pass
+            else:
                 # Pay players
                 players = PlayerIter('t', 'bot', 'userid')
                 for player in players:
@@ -181,13 +196,15 @@ def round_end(game_event):
                     leetcoin_client.requestAward(math.ceil(kickback), "Player on winning team", player)
         if winner == 3:
             print("CT Wins!")
-            pprint.pprint(bets[1])
+            pprint.pprint(bets['ct'])
             # Pay winners
-            for bet in bets[1]:
-                award = remaining / len(bets[1])
-                leetcoin_client.requestAward(award, "Won bet on CT", bet)
+            for userid, amount in bets['ct']:
+                award = remaining / (amount / pool_ct)
+                leetcoin_client.requestAward(award, "Won bet on CT", userid)
 
-            if len(bets[1]) > 0:
+            if not bets['ct']:
+                pass
+            else:
                 # Pay players
                 players = PlayerIter('ct', 'bot', 'userid')
                 for player in players:
@@ -195,7 +212,7 @@ def round_end(game_event):
                     leetcoin_client.requestAward(math.ceil(kickback), "Player on winning team", player)
                 
     leetcoin_client.repeatingServerUpdate()
-    bets = [[], []]
+    bets = {'ct': {}, 't': {}}
     pass   
 
 
@@ -419,14 +436,20 @@ def saycommand_bet(playerinfo, teamonly, command):
     # Check if player is spectator
     if team_number == 1:
         team = params[1]
+        amount = params[2]
 
-        if team == "t":
-            SayText2(message="BET - 100 SAT - T WIN").send(index_from_playerinfo(playerinfo))
-            leetcoin_client.requestAward(-100, "BETTING - T WIN", userid_from_playerinfo(playerinfo))
-            bets[0].append(userid_from_playerinfo(playerinfo))
-        if team == "ct":
-            SayText2(message="BET - 100 SAT - CT WIN").send(index_from_playerinfo(playerinfo))
-            leetcoin_client.requestAward(-100, "BET - CT WIN", userid_from_playerinfo(playerinfo))
-            bets[1].append(userid_from_playerinfo(playerinfo))
+        if int(amount) >= 100:
+            if team == "t":
+                SayText2(message="BET - " + amount + " SAT - T WIN").send(index_from_playerinfo(playerinfo))
+                leetcoin_client.requestAward(-int(amount), "BET - " + amount + " SAT - T WIN", userid_from_playerinfo(playerinfo))
+                bets['t'][userid_from_playerinfo(playerinfo)] = int(amount)
+            if team == "ct":
+                SayText2(message="BET - " + amount + " SAT - CT WIN").send(index_from_playerinfo(playerinfo))
+                leetcoin_client.requestAward(-int(amount), "BET - " + amount + " SAT - CT WIN", userid_from_playerinfo(playerinfo))
+                bets['ct'][userid_from_playerinfo(playerinfo)] = int(amount)
+#            balance = leetcoin_client.getPlayerBalance(convertSteamIDToCommunityID(playerinfo.get_networkid_string()))
+#            SayText2(message="Updated " + balance).send(index_from_playerinfo(playerinfo))
+        else:
+            SayText2(message="Invalid amount").send(index_from_playerinfo(playerinfo))
     else:
         SayText2(message="Only spectators can bet").send(index_from_playerinfo(playerinfo))
