@@ -76,7 +76,6 @@ leetcoin_client = LeetCoinAPIClient(url, api_key, shared_secret)
 pending_activation_player_list = []
 
 # custom betting
-#bets = [[], []]
 bets = {'ct': {}, 't': {}}
 
 # Create a callback
@@ -164,18 +163,19 @@ def round_end(game_event):
 #        pool = (len(bets[0]) + len(bets[1])) * 100
         pool_ct = 0
         pool_t = 0
-        for userid, amount in bets['ct']:
+        for userid, amount in bets['ct'].items():
             pool_ct += amount
-        for userid, amount in bets['t']:
+        for userid, amount in bets['t'].items():
             pool_t += amount
         pool = pool_ct + pool_t
 
         pprint.pprint(pool)
-        server_take = pool * 0.10 # 10%
+        player_cut = pool * 0.1 # 10%
         pprint.pprint(server_take)
-        players_cut = server_take / 5 # 2%
+        server_take = player_cut * 0.3 # 3%
+        leet_take = player_cut * 0.2 # 2%
         pprint.pprint(players_cut)
-        remaining = pool - server_take
+        remaining = pool - player_cut
         pprint.pprint(remaining)
 
         if winner == 2:
@@ -198,7 +198,7 @@ def round_end(game_event):
             print("CT Wins!")
             pprint.pprint(bets['ct'])
             # Pay winners
-            for userid, amount in bets['ct']:
+            for userid, amount in bets['ct'].items():
                 award = remaining / (amount / pool_ct)
                 leetcoin_client.requestAward(award, "Won bet on CT", userid)
 
