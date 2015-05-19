@@ -27,8 +27,6 @@ except ImportError: print ("hashlib Import Error")
 try: import http.client
 except ImportError: print ("http.client Import Error")
 
-#import md5
-
 # We import something called a decorator here which we can use to let Source.Python know that we want to listen to the event
 from events import Event
 from entities.entity import BaseEntity
@@ -42,9 +40,6 @@ engine = engine_server
 
 try: import json
 except ImportError: print ("Json Import Error")
-
-#from tick.repeat import Repeat
-#from tick.delays import TickDelays
 
 from listeners.tick import TickRepeat, tick_delays
 
@@ -75,8 +70,11 @@ leetcoin_client = LeetCoinAPIClient(url, api_key, shared_secret)
 # players requiring activation
 pending_activation_player_list = []
 
-# custom betting
+# Spectator Betting
 bets = {'ct': {}, 't': {}}
+
+# Bounties
+bounties = {}
 
 # Create a callback
 def my_repeat_callback():
@@ -148,10 +146,7 @@ def round_end(game_event):
 
     # Check both teams have bets
     if not bets['ct'] or not bets['t']:
-
-        pprint.pprint(bets)
-
-        # Return bets
+        # Refund bets
         for userid, amount in bets['ct'].items():
             SayText2(message="REFUND - " + str(amount) + " SAT - NOT ENOUGH BETS").send(index_from_userid(userid))
             leetcoin_client.requestAward(amount, "REFUND - " + str(amount) + " SAT - NOT ENOUGH BETS", userid)
@@ -160,7 +155,7 @@ def round_end(game_event):
             leetcoin_client.requestAward(amount, "REFUND - " + str(amount) + " SAT - NOT ENOUGH BETS", userid)
         pass
     else:
-#        pool = (len(bets[0]) + len(bets[1])) * 100
+        # Calculate pool
         pool_ct = 0
         pool_t = 0
         for userid, amount in bets['ct'].items():
@@ -169,18 +164,12 @@ def round_end(game_event):
             pool_t += amount
         pool = pool_ct + pool_t
 
-        pprint.pprint(pool)
-        player_cut = pool * 0.1 # 10%
-        pprint.pprint(server_take)
-        server_take = player_cut * 0.3 # 3%
-        leet_take = player_cut * 0.2 # 2%
-        pprint.pprint(players_cut)
+        # 10% for players
+        player_cut = pool * 0.1
         remaining = pool - player_cut
-        pprint.pprint(remaining)
 
         if winner == 2:
             print("T Wins!")
-            pprint.pprint(bets['t'])
             # Pay winners
             for userid, amount in bets['t']:
                 award = remaining / (amount / pool_t)
@@ -196,7 +185,6 @@ def round_end(game_event):
                     leetcoin_client.requestAward(math.ceil(kickback), "Player on winning team", player)
         if winner == 3:
             print("CT Wins!")
-            pprint.pprint(bets['ct'])
             # Pay winners
             for userid, amount in bets['ct'].items():
                 award = remaining / (amount / pool_ct)
@@ -303,6 +291,11 @@ def player_death(game_event):
         vbalance = leetcoin_client.getPlayerBalance(convertSteamIDToCommunityID(victimplayerinfo.get_networkid_string()))
         SayText2(message="Updated " + vbalance + "").send(victimindex)
         if victim_steamid != attacker_steamid:
+            # award bounty
+            if victimindex in bounties:
+                leetcoin_client.requestAward(bounties[victimindex], "BOUNTY", attackerindex)
+                SayText2(message="BOUNTY COLLECTED - " + str(bounties[victimindex]) + " SAT").send(attackerindex)
+                del bounties[victimindex]
             abalance = leetcoin_client.getPlayerBalance(convertSteamIDToCommunityID(attackerplayerinfo.get_networkid_string()))
             SayText2(message="Updated " + abalance + "").send(attackerindex)    	
 
@@ -386,13 +379,14 @@ def other_death(game_event):
     if not userid:
         return
     
+# disable chicken award
     # Ask for reward 
-    award = leetcoin_client.requestAward(100, "Chicken killa", userid)
+#    award = leetcoin_client.requestAward(100, "Chicken killa", userid)
     # Get a PlayerEntity instance of the attacker...
-    attacker = PlayerEntity(index_from_userid(game_event.get_int('attacker')))
+#    attacker = PlayerEntity(index_from_userid(game_event.get_int('attacker')))
     # Display a message...
-    SayText2(message='{0} killed a chicken and had a chance to earn 100 satoshi!'.format(
-        attacker.name)).send()
+#    SayText2(message='{0} killed a chicken and had a chance to earn 100 satoshi!'.format(
+#        attacker.name)).send()
     
 
 @Event
@@ -429,27 +423,64 @@ def saycommand_bet(playerinfo, teamonly, command):
 
     params = str(command[1]).split(" ")
 
-    # testing
-    team_number = player.team
-#    team_number = 1
-
-    # Check if player is spectator
-    if team_number == 1:
+    if len(params) == 3:
         team = params[1]
         amount = params[2]
 
-        if int(amount) >= 100:
-            if team == "t":
-                SayText2(message="BET - " + amount + " SAT - T WIN").send(index_from_playerinfo(playerinfo))
-                leetcoin_client.requestAward(-int(amount), "BET - " + amount + " SAT - T WIN", userid_from_playerinfo(playerinfo))
-                bets['t'][userid_from_playerinfo(playerinfo)] = int(amount)
-            if team == "ct":
-                SayText2(message="BET - " + amount + " SAT - CT WIN").send(index_from_playerinfo(playerinfo))
-                leetcoin_client.requestAward(-int(amount), "BET - " + amount + " SAT - CT WIN", userid_from_playerinfo(playerinfo))
-                bets['ct'][userid_from_playerinfo(playerinfo)] = int(amount)
-#            balance = leetcoin_client.getPlayerBalance(convertSteamIDToCommunityID(playerinfo.get_networkid_string()))
-#            SayText2(message="Updated " + balance).send(index_from_playerinfo(playerinfo))
+        team_number = player.team
+#        team_number = 1 # For Testing
+
+        # Check if player is spectator
+        if team_number == 1:
+
+            if int(amount) >= 100:
+                if team == "t":
+                    SayText2(message="PAYOUT - " + amount + " SAT - T WIN").send(index_from_playerinfo(playerinfo))
+                    leetcoin_client.requestAward(-int(amount), "PAYOUT - " + amount + " SAT - T WIN", userid_from_playerinfo(playerinfo))
+                    bets['t'][userid_from_playerinfo(playerinfo)] = int(amount)
+                if team == "ct":
+                    SayText2(message="PAYOUT - " + amount + " SAT - CT WIN").send(index_from_playerinfo(playerinfo))
+                    leetcoin_client.requestAward(-int(amount), "PAYOUT - " + amount + " SAT - CT WIN", userid_from_playerinfo(playerinfo))
+                    bets['ct'][userid_from_playerinfo(playerinfo)] = int(amount)
+            else:
+                SayText2(message="Minimum bet is 100 SAT").send(index_from_playerinfo(playerinfo))
         else:
-            SayText2(message="Invalid amount").send(index_from_playerinfo(playerinfo))
+            SayText2(message="Only spectators can bet").send(index_from_playerinfo(playerinfo))
     else:
-        SayText2(message="Only spectators can bet").send(index_from_playerinfo(playerinfo))
+        SayText2(message="Command: bet <team> <amount>").send(index_from_playerinfo(playerinfo))
+
+@SayCommand("bounty")
+def saycommand_bounty(playerinfo, teamonly, command):
+    # bounty <player> <amount>
+    params = str(command[1]).split(" ")
+
+    if len(params) == 3:
+        player = params[1]
+        amount = int(params[2])
+
+        if amount > 0:
+            # Lookup player name
+            humans = PlayerIter('human', return_types=['name', 'userid'])
+            for name, userid in humans:
+                if name == player:
+                    leetcoin_client.requestAward(-int(amount), "BOUNTY", userid_from_playerinfo(playerinfo))
+
+                    if userid in bounties:
+                        bounties[userid] += amount
+                    else:
+                        bounties[userid] = amount
+
+                    SayText2(message="BOUNTY HAS BEEN PLACED").send(index_from_playerinfo(playerinfo))
+    else:
+        SayText2(message="Command: bounty <player> <amount>").send(index_from_playerinfo(playerinfo))
+    pass
+
+@SayCommand("duel")
+def saycommand_duel(playerinfo, teamonly, command):
+    # duel <player> <amount>
+    pass
+
+@SayCommand("parlay")
+def saycommand_paylay(playerinfo, teamonly, command):
+    # parlay <team> <amount> <rounds>
+    pass
