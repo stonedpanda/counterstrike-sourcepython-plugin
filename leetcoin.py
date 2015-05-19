@@ -134,7 +134,7 @@ def round_start(game_event):
 
     players = PlayerIter('human')
     for player in players:
-        SayText2(message="Type: bet <ct|t> <amount> to place a wager").send(player)
+        SayText2(message="Commands: bet, bounty").send(player)
     pass
  
 @Event
@@ -447,7 +447,7 @@ def saycommand_bet(playerinfo, teamonly, command):
         else:
             SayText2(message="Only spectators can bet").send(index_from_playerinfo(playerinfo))
     else:
-        SayText2(message="Command: bet <team> <amount>").send(index_from_playerinfo(playerinfo))
+        SayText2(message="Type: bet <team> <amount>").send(index_from_playerinfo(playerinfo))
 
 @SayCommand("bounty")
 def saycommand_bounty(playerinfo, teamonly, command):
@@ -455,24 +455,29 @@ def saycommand_bounty(playerinfo, teamonly, command):
     params = str(command[1]).split(" ")
 
     if len(params) == 3:
-        player = params[1]
+        playername = params[1]
         amount = int(params[2])
 
         if amount > 0:
             # Lookup player name
             humans = PlayerIter('human', return_types=['name', 'userid'])
+            playerFound = False
             for name, userid in humans:
-                if name == player:
-                    leetcoin_client.requestAward(-int(amount), "BOUNTY", userid_from_playerinfo(playerinfo))
+                if name == playername:
+                    playerFound = True
+                    target = userid
 
-                    if userid in bounties:
-                        bounties[userid] += amount
-                    else:
-                        bounties[userid] = amount
-
-                    SayText2(message="BOUNTY HAS BEEN PLACED").send(index_from_playerinfo(playerinfo))
+            if playerFound:
+                leetcoin_client.requestAward(-int(amount), "BOUNTY", userid_from_playerinfo(playerinfo))
+                if userid in bounties:
+                    bounties[userid] += amount
+                else:
+                    bounties[userid] = amount
+                SayText2(message="BOUNTY PLACED ON " + playername).send(index_from_playerinfo(playerinfo))
+            else:
+                SayText2(message="Player not found").send(index_from_playerinfo(playerinfo))
     else:
-        SayText2(message="Command: bounty <player> <amount>").send(index_from_playerinfo(playerinfo))
+        SayText2(message="Type: bounty <player> <amount>").send(index_from_playerinfo(playerinfo))
     pass
 
 @SayCommand("duel")
